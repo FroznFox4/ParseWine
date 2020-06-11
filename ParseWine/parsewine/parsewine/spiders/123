@@ -1,0 +1,125 @@
+ coding: utf8
+import scrapy
+import logging
+
+class QuotesSpider(scrapy.Spider):
+    logging.getLogger('scrapy').setLevel(logging.WARNING)
+    logging.getLogger('scrapy').propagate = False
+
+    name = "quotes"
+    allowed_domains = ["eurocave.ru"]
+    start_urls = [
+            'http://eurocave.ru/products/'
+        ]
+
+    # def parse(self, response):
+    #     product_item = response.css('article div.product-item')
+    #     try:
+    #         if len(product_item) == 0:
+    #             for category in response.css('article div.category-item'):
+    #                 next_page = category.css('div.wrapper div.category-capt-txt a').attrib['href']
+    #                 yield response.follow(next_page, callback=self.parse)
+    #         else:
+    #             for item in product_item:
+    #                 yield {
+    #                     'name': item.css('div.wrapper div.product-link')[0].css('a::text').get(default='').strip(),
+    #                     'cost': item.css('span.product-price-data::attr(data-cost)').get(),
+    #                     'status': item.css('div.quantity-products::text').get(default='').strip()
+    #                 }
+    #     except Exception as err:
+    #         print(err)
+
+    def parse(self, response):
+        product_item = response.css('article div.product-item')
+        try:
+            if len(product_item) == 0:
+                for category in response.css('article div.category-item'):
+                    next_page = category.css('div.wrapper div.category-capt-txt a').attrib['href']
+                    yield response.follow(next_page, callback=self.parse)
+            else:
+                for item in product_item:
+                    if "шкаф" in item.css('div.wrapper div.product-link')[0].css('a::text').get(default='').strip().split(' '):
+                        yield response.follow(item.css('div.wrapper div.product-link')[0].css('a::attr(href)').get(default=''), callback=self.take_color)
+                    else:
+                        yield {
+                            'name': item.css('div.wrapper div.product-link')[0].css('a::text').get(default='').strip(),
+                            'cost': item.css('span.product-price-data::attr(data-cost)').get(default=''),
+                            'status': item.css('div.quantity-products::text').get(default='').strip(),
+                            'url': response.url,
+                            'color': 'не шкаф'
+                        }
+        except Exception as err:
+            print(err)
+    
+    def take_color(self, response):
+        # try:
+        # url = response.css('div.section-bread-crumbs a::(href)')[-1].get()
+        try:
+            position = response.css('div.user-inner table tbody tr td')[-1].css('p')
+            if len(position) != 0:
+                flag = False
+                for item in position:
+                    line = item.css('span::text').get(default='').strip(' ').split(' ')
+                    if 'Цвет' in line:
+                        if 'черный' in line:
+                            flag = True
+                        if 'черный\xa0' in line:
+                            flag = True
+                if flag:
+                    yield {
+                        'name': response.css('div.span8 h1::text').get(default=''),
+                        'cost': response.css('span.product-price-data::text').get(default=''),
+                        'status': response.css('div.quantity-products div.-f-big::text').get(default=''),
+                        'url': response.url,
+                        'color': 'черный'
+                    }
+                else:
+                    yield {
+                            'name': response.css('div.span8 h1::text').get(default=''),
+                            'cost': response.css('span.product-price-data::text').get(default=''),
+                            'status': response.css('div.quantity-products div.-f-big::text').get(default=''),
+                            'url': response.url,
+                            'color': 'не черный'
+                        }
+            else:
+                yield {
+                        'name': response.css('div.span8 h1::text').get(default='').strip(),
+                        'cost': response.css('span.product-price-data::text').get(default='').strip(),
+                        'status': response.css('div.quantity-products div.-f-big::text').get(default='').strip(),
+                        'url': response.url,
+                        'color': 'шкаф без описания'
+                    }
+        except IndexError as err:
+            yield {
+                'name': response.css('div.span8 h1::text').get(default='').strip(),
+                'cost': response.css('span.product-price-data::text').get(default='').strip(),
+                'status': response.css('div.quantity-products div.-f-big::text').get(default='').strip(),
+                'url': response.url,
+                'color': 'вроде шкаф а вроде и нет'
+            }
+        except Exception as err:
+            print(err)
+            print({
+                    'name': response.css('div.span8 h1::text').get(default='').strip(),
+                    'cost': response.css('span.product-price-data::text').get(default='').strip(),
+                    'status': response.css('div.quantity-products div.-f-big::text').get(default='').strip(),
+                    'url': response.url,
+                    'color': 'шкаф без описания'
+                })
+
+    def simple_return( 
+        self,
+        response = None,
+        name = 'div.span8 h1::text', 
+        cost = 'span.product-price-data::text', 
+        status = 'div.quantity-products div.-f-big::text', 
+        url = None, 
+        color = None):
+
+        return {
+            'name': response.css(name).get(default=''),
+            'cost': response.css(cost).get(default=''),
+            'status': response.css(status).get(default=''),
+            'url': response.url,
+            'color': color
+        }
